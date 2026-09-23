@@ -8,3 +8,5 @@ build/
 venv/
 downloads/
 .DS_Store
+result
+result-*
