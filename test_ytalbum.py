@@ -136,6 +136,29 @@ class TestBuildDownloadCmd(unittest.TestCase):
         self.assertIn("--audio-format", cmd)
         self.assertIn("opus", cmd)
 
+    def test_embed_thumbnail_default(self):
+        cmd = build_download_cmd(
+            "yt-dlp", "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            Path("/tmp/x"), "mp3", "320K", None, None, None, [], False, False, [],
+        )
+        self.assertIn("--embed-thumbnail", cmd)
+
+    def test_no_album_art_omits_embed_thumbnail(self):
+        cmd = build_download_cmd(
+            "yt-dlp", "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            Path("/tmp/x"), "mp3", "320K", None, None, None, [], False, False, [],
+            album_art=False,
+        )
+        self.assertNotIn("--embed-thumbnail", cmd)
+
+    def test_album_art_true_includes_embed_thumbnail(self):
+        cmd = build_download_cmd(
+            "yt-dlp", "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            Path("/tmp/x"), "mp3", "320K", None, None, None, [], False, False, [],
+            album_art=True,
+        )
+        self.assertIn("--embed-thumbnail", cmd)
+
     def test_auth_and_extractor_args_forwarded(self):
         cmd = build_download_cmd(
             "yt-dlp", "https://www.youtube.com/playlist?list=PLfff",

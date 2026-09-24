@@ -186,13 +186,13 @@ def build_download_cmd(
     keep_video: bool,
     verbose: bool,
     extra: list[str],
+    album_art: bool = True,
 ) -> list[str]:
     is_playlist = "list=" in target
     cmd = [
         ytdlp,
         "--yes-playlist" if is_playlist else "--no-playlist",
         "--embed-metadata",
-        "--embed-thumbnail",
         "--concurrent-fragments",
         "4",
         "--paths",
@@ -206,6 +206,8 @@ def build_download_cmd(
         "--audio-quality",
         quality,
     ]
+    if album_art:
+        cmd.append("--embed-thumbnail")
     if not keep_video:
         cmd.append("-x")
     if items:
@@ -280,6 +282,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dry-run", action="store_true", help="show the yt-dlp command without downloading")
     p.add_argument("--search-count", type=int, default=25, help="max search results to inspect (default: 25)")
     p.add_argument("--keep-video", action="store_true", help="keep original video file after processing")
+    p.add_argument("--no-album-art", action="store_true",
+                   help="do not embed album art into audio files (default: embed thumbnails)")
     p.add_argument("--cookies", metavar="FILE", help="Netscape cookie file for yt-dlp (age-restricted content)")
     p.add_argument("--cookies-from-browser", metavar="BROWSER",
                    help="load YouTube cookies from a browser, e.g. chromium, firefox (fixes bot checks)")
@@ -339,6 +343,7 @@ def main(argv: list[str] | None = None) -> int:
         args.keep_video,
         args.verbose,
         extra=[],
+        album_art=not args.no_album_art,
     )
 
     if args.dry_run:
