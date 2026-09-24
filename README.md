@@ -19,7 +19,8 @@ downloads/
         └── ...
 ```
 
-with ID3 metadata and cover art embedded. It is powered by
+with ID3 metadata and cover art embedded — album art is on **by default**, and
+`--no-album-art` opts out. It is powered by
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) and
 [ffmpeg](https://ffmpeg.org/) — `ytalbum` itself is stdlib-only Python and just
 drives those tools intelligently.
@@ -77,6 +78,9 @@ drives those tools intelligently.
   is weak (score < 20).
 - **One-shot audio pipeline:** `yt-dlp -x --audio-format … --audio-quality …`
   plus `--embed-metadata --embed-thumbnail`, 4 concurrent fragments.
+- **Album art by default:** every download passes `--embed-thumbnail`, so the
+  video thumbnail is converted webp→png by ffmpeg and embedded into each audio
+  file. New in 0.2.0: opt out per-run with `--no-album-art`.
 - **Inspectable:** `--list` shows the ranked table with scores; `--dry-run`
   prints the exact `yt-dlp` command without downloading; `-v` echoes
   everything.
@@ -119,7 +123,8 @@ drives those tools intelligently.
             ▼
   ┌─────────────────────┐
   │ 5. Download + tag    │  yt-dlp -x --audio-format mp3 --audio-quality 320K
-  │                      │  --embed-metadata --embed-thumbnail
+  │                      │  --embed-metadata --embed-thumbnail   (album art
+  │                      │  on by default; omit with --no-album-art)
   │                      │  -o "<out>/<Artist>/<Album>/NN - title.ext"
   └─────────────────────┘
 ```
@@ -132,11 +137,12 @@ drives those tools intelligently.
 | ---------- | ------------ | -------------------------------------- | ------------------- |
 | Python     | 3.9+         | runs `ytalbum.py` (uses `X \| Y` types) | `python3 --version` |
 | `yt-dlp`   | recent (2024+) | search, download, convert            | `yt-dlp --version`  |
-| `ffmpeg`   | any recent   | audio conversion, tagging, thumbnails  | `ffmpeg -version`   |
+| `ffmpeg`   | any recent   | audio conversion, tagging, album-art   | `ffmpeg -version`   |
+|            |              | embedding (webp→png thumbnails)        |                     |
 
-`ytalbum` warns (but continues) if `ffmpeg` is missing; conversion and
-thumbnail embedding will then fail inside `yt-dlp`. It aborts with a clear
-error if `yt-dlp` is not on `PATH`.
+`ytalbum` warns (but continues) if `ffmpeg` is missing; audio conversion,
+tagging, and thumbnail embedding will then fail inside `yt-dlp`. It aborts with
+a clear error if `yt-dlp` is not on `PATH`.
 
 Optional, for hostile networks:
 
@@ -303,6 +309,10 @@ ytalbum "In Rainbows by Radiohead" --output /mnt/nas/audio
 
 # Keep the original video file too (default: audio only via -x)
 ytalbum "In Rainbows by Radiohead" --keep-video
+
+# Album art is embedded by default (--embed-thumbnail); opt out if the
+# uploader's thumbnail isn't the real cover, or if you tag art yourself
+ytalbum "In Rainbows by Radiohead" --no-album-art
 ```
 
 ### Partial downloads
@@ -353,11 +363,12 @@ ytalbum "In Rainbows by Radiohead" \
 ## CLI Reference
 
 ```text
-usage: ytalbum [-h] [--artist ARTIST] [-o DIR]
+usage: ytalbum [-h] [--artist ARTIST] [-o OUTPUT]
                [--format {mp3,m4a,opus,flac,wav,vorbis}] [--quality QUALITY]
                [--list] [--playlist URL_OR_ID] [--items RANGE] [--dry-run]
-               [--search-count N] [--keep-video] [--cookies FILE]
-               [--cookies-from-browser BROWSER] [-E ARGS] [-v] [--version]
+               [--search-count SEARCH_COUNT] [--keep-video] [--no-album-art]
+               [--cookies FILE] [--cookies-from-browser BROWSER] [-E ARGS]
+               [-v] [--version]
                [album]
 ```
 
@@ -374,6 +385,7 @@ usage: ytalbum [-h] [--artist ARTIST] [-o DIR]
 | `--dry-run`                | off          | Create the destination, print the yt-dlp command, download nothing. |
 | `--search-count N`         | `25`         | Max search-result entries to fetch and rank (`--playlist-end`).    |
 | `--keep-video`             | off          | Keep the source video (omit yt-dlp `-x`).                          |
+| `--no-album-art`           | off          | Drop yt-dlp `--embed-thumbnail` so nothing is embedded as cover art. Files are still tagged (see `--embed-metadata`); when off (default), the video thumbnail is embedded as album art. |
 | `--cookies FILE`           | —            | Netscape cookie file, forwarded as `--cookies`.                    |
 | `--cookies-from-browser B` | —            | Browser name (`chromium`, `firefox`, `brave`, …), forwarded as `--cookies-from-browser`. |
 | `-E, --extractor-args A`   | —            | Repeatable. Forwarded verbatim as `--extractor-args`.              |
@@ -449,6 +461,11 @@ For `"In Rainbows by Radiohead"` a typical ranking is:
 - Every download runs with `--embed-metadata --embed-thumbnail` and
   `--concurrent-fragments 4`. Audio extraction uses `-x` unless
   `--keep-video` is given.
+- **Album art is embedded by default.** yt-dlp downloads the video thumbnail,
+  converts it webp→png via ffmpeg, and embeds it into each audio file — an MP3
+  ends up with a 1280×1280 attached PNG picture stream. Pass `--no-album-art`
+  to drop `--embed-thumbnail` from the yt-dlp command, so files are tagged
+  with metadata but carry no embedded cover.
 - Re-running is cheap: yt-dlp skips files that already exist.
 
 ---
@@ -467,6 +484,9 @@ ytalbum "Kind of Blue by Miles Davis" --format flac --items 1-5
 
 # Force the official YouTube Music tracklist when search is noisy
 ytalbum "In Rainbows" --artist Radiohead --playlist OLAK5uy_lvqkQRb8iVo2obChPXi9XFRLoIyaxbTj8
+
+# Same, but skip embedded cover art (tags only)
+ytalbum "In Rainbows" --artist Radiohead --playlist OLAK5uy_lvqkQRb8iVo2obChPXi9XFRLoIyaxbTj8 --no-album-art
 
 # Scripting: exact command preview is machine-parseable via --dry-run
 ytalbum "In Rainbows by Radiohead" --dry-run -o /tmp/stage --items 1
@@ -555,6 +575,7 @@ that would be breaking YouTube's bot protection.
 | `cannot interpret --playlist value` | typo'd ID | pass full URL, `PL…`/`OLAK…`, or 11-char video ID |
 | `Sign in to confirm you're not a bot` | flagged IP / no session | see [Bot Checks](#bot-checks-sign-in-to-confirm-youre-not-a-bot) |
 | `ERROR: … cookies … no key found` | encrypted browser store yt-dlp can't read | use `--cookies cookies.txt` export instead |
+| No album art in the audio files | `--no-album-art` was passed, or ffmpeg is missing so yt-dlp's thumbnail conversion/embed failed | drop the flag; install ffmpeg (watch the startup warning) |
 | Wrong album downloaded | ambiguous title (many same-name albums) | always include `--artist`; verify with `--list` first |
 | Files named `NA - …` | playlist lacks indices (rare) | use `--playlist` with a proper playlist; or accept video titles |
 | `Downloads are slow` | default fragment concurrency | it already uses `--concurrent-fragments 4`; check your link |
@@ -579,6 +600,12 @@ care about fidelity-per-byte, use `--format opus`. If you want archival,
 Per-track files get proper indices, titles, and embedded tags; a single video
 gives you one 60-minute blob. You can still force the blob with `--playlist
 <video-URL>`.
+
+**Can I skip the embedded album art?**
+Yes — `--no-album-art`. Cover art (the video thumbnail, embedded as a
+1280×1280 PNG picture stream in MP3s) is on by default. Opt out when the
+uploader's thumbnail isn't the real artwork, or when you tag cover art
+yourself afterward.
 
 **Why does search need no API key?**
 It scrapes the public YouTube results page through yt-dlp's flat-playlist
@@ -607,7 +634,7 @@ git clone https://github.com/Narla7/youtube-album-downloader.git
 cd youtube-album-downloader
 
 # run the suite (stdlib unittest, no third-party test deps)
-python3 -m unittest test_ytalbum -v   # 19 tests
+python3 -m unittest test_ytalbum -v   # 22 tests
 
 # style: keep it stdlib-only, argparse-based, one module
 python3 -m py_compile ytalbum.py test_ytalbum.py
@@ -618,7 +645,8 @@ flag, empty input), filename sanitizing, ranking/scoring rules (official
 playlist preference, disc-2/lyrics penalties, playlist-before-video),
 target picking (playlist preference, full-video fallback, empty error), URL
 building, and download-command construction (playlist vs video flags,
-auth/extractor-arg forwarding).
+auth/extractor-arg forwarding, `--embed-thumbnail` present by default,
+omitted with `album_art=False`, present with `album_art=True`).
 
 ---
 
@@ -627,8 +655,9 @@ auth/extractor-arg forwarding).
 ```text
 youtube-album-downloader/
 ├── ytalbum.py        # the CLI — parsing, search, scoring, download (stdlib only)
-├── test_ytalbum.py   # 19 stdlib unit tests for the pure functions
+├── test_ytalbum.py   # 22 stdlib unit tests for the pure functions
 ├── pyproject.toml    # setuptools build; exposes the `ytalbum` entry point
+├── flake.nix         # Nix flake: package, app, devShell, and test check
 ├── README.md         # this file
 ├── LICENSE           # MIT
 └── .gitignore        # caches, build output, downloads/
@@ -636,7 +665,8 @@ youtube-album-downloader/
 
 `ytalbum.py` is intentionally a single module: `Candidate` dataclass +
 `parse_album_query / build_search_url / search_candidates / score_candidate /
-rank / print_candidates / pick_target / build_download_cmd / main`.
+rank / print_candidates / pick_target / build_download_cmd / main`,
+with `album_art: bool = True` controlling `--embed-thumbnail`.
 
 ---
 
@@ -646,6 +676,9 @@ rank / print_candidates / pick_target / build_download_cmd / main`.
   tags, crowd noise, or gaps. Verify with `--list`.
 - Auto-generated (`OLAK…`) playlists are usually the clean studio tracklist —
   preferred automatically when they match.
+- Album art comes from the video thumbnail — on re-uploads that may be nothing
+  like the real cover. Use `--no-album-art` and tag your own art if that
+  matters.
 - Single-video fallback has no per-track splits (use `--items` only with
   playlists).
 - No SponsorBlock, no chapter splitting, no lyrics fetching (out of scope).
@@ -657,6 +690,20 @@ rank / print_candidates / pick_target / build_download_cmd / main`.
 ---
 
 ## Changelog
+
+### 0.2.0 — album art control (unreleased)
+
+- Album art is now embedded **by default**: every download passes
+  `--embed-thumbnail` to yt-dlp, which fetches the video thumbnail, converts
+  it webp→png via ffmpeg, and attaches it to the audio files (MP3s carry a
+  1280×1280 attached PNG picture stream).
+- New `--no-album-art` flag: an opt-out that removes `--embed-thumbnail` from
+  the yt-dlp command, so files are still tagged (ID3 metadata) but carry no
+  embedded cover.
+- `build_download_cmd` gained the keyword parameter `album_art: bool = True`;
+  `main` wires it as `album_art=not args.no_album_art`.
+- Test suite now counts **22 tests** (was 19): `--embed-thumbnail` present by
+  default, omitted with `album_art=False`, included with `album_art=True`.
 
 ### 0.1.0 — initial release
 
